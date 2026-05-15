@@ -171,12 +171,6 @@ fun ItemRuleBody(rule: ItemRule, regionLabel: String? = null) {
 
     Spacer(Modifier.height(Tokens.Sp12))
     Row(verticalAlignment = Alignment.CenterVertically) {
-        androidx.compose.foundation.Image(
-            painter = androidx.compose.ui.res.painterResource(id = app.trashai.R.drawable.logo_kwa),
-            contentDescription = "한국폐기물협회 로고",
-            modifier = Modifier.height(14.dp)
-        )
-        Spacer(Modifier.width(Tokens.Sp4))
         Text(
             "출처 · ${rule.sourceName}",
             fontSize = Tokens.TagSize,
