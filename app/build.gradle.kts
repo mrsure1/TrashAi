@@ -58,11 +58,6 @@ android {
         }
     }
 
-    androidResources {
-        // ONNX models are loaded from assets via byte buffer; keep uncompressed
-        // for faster cold-start (avoids zip inflation).
-        noCompress += "onnx"
-    }
 }
 
 dependencies {
@@ -75,12 +70,15 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.extended)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     implementation(libs.camerax.core)
     implementation(libs.camerax.camera2)
     implementation(libs.camerax.lifecycle)
     implementation(libs.camerax.view)
+
+    implementation(libs.mlkit.objects)
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.play.services)
@@ -89,6 +87,5 @@ dependencies {
     implementation(libs.okhttp)
 
     implementation(libs.accompanist.permissions)
-
-    implementation(libs.onnxruntime.android)
+    implementation(libs.play.services.location)
 }

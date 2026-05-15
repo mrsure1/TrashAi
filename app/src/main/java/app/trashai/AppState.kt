@@ -7,8 +7,8 @@ import app.trashai.data.WasteGuideDb
 import app.trashai.data.itemById
 import app.trashai.data.searchByKeywords
 import app.trashai.gemini.GeminiClient
-import app.trashai.vision.Detection
-import app.trashai.vision.LabelBridge
+import app.trashai.gemini.GeminiResult
+import app.trashai.location.LocationHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -17,13 +17,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 
 data class AppUiState(
     val sheetState: SheetState = SheetState.Idle,
-    val lastDetections: List<Detection> = emptyList(),
-)
+    /** Region label shown in the top pill. Defaults to manual seed; updated by GPS. */
+    val regionLabel: String = "고양시 일산동구",
+    val regionLoading: Boolean = false,
+    /** JPEG of the most recent capture (cropped or full). Shown in the top half
+     *  whenever a result sheet is open, replacing the live preview. */
+    val lastCapturedJpeg: ByteArray? = null,
+) {
+    // Default equals/hashCode would compare ByteArray by reference; that's fine
+    // for our usage (we only test sheetState/regionLabel-driven recomposition).
+}
 
 sealed interface SheetState {
     data object Idle : SheetState
@@ -57,7 +64,6 @@ class AppState(private val appContext: Context) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val gemini = GeminiClient()
-    private val analysisLock = Mutex()
 
     private val ambiguityGap = 0.15f
 
@@ -71,47 +77,42 @@ class AppState(private val appContext: Context) {
     }
 
     /**
-     * Detection callback. Updates overlay every frame, but ONLY changes the
-     * sheet content when the sheet is Idle. Once the user has any sheet open
-     * (clarify, item, ask, confirming, …) the live camera no longer overrides
-     * what they're looking at.
+     * Called when the user has selected a region (or full frame) and confirmed
+     * they want it analyzed. We send the JPEG to Gemini, then ground the result
+     * against the local DB.
      */
-    fun onDetections(detections: List<Detection>) {
-        _state.update { it.copy(lastDetections = detections) }
-        if (detections.isEmpty()) return
-        if (_state.value.sheetState !is SheetState.Idle) return
-        // Auto-present only when there's exactly ONE candidate box.
-        // Multiple boxes → wait for the user to tap the one they care about.
-        if (detections.size == 1) {
-            scope.launch { groundFromDetection(detections.first(), sourceLabel = "카메라 인식") }
-        }
-    }
-
-    /**
-     * User explicitly tapped a bounding box on the camera overlay.
-     * Always wins over current sheet state (user-initiated selection).
-     */
-    fun pickDetection(detection: Detection) {
-        scope.launch {
-            _state.update { it.copy(sheetState = SheetState.Loading("선택한 영역 분석 중…")) }
-            groundFromDetection(detection, sourceLabel = "선택한 영역", forced = true)
-        }
-    }
-
     suspend fun onCapture(jpegBytes: ByteArray) {
         if (!gemini.isConfigured) {
-            _state.update { it.copy(sheetState = SheetState.Error("local.properties의 GEMINI_API_KEY를 입력해주세요.")) }
+            _state.update { it.copy(sheetState = SheetState.Error("local.properties의 GEMINI_API_KEY를 입력해주세요. (Clean+Rebuild 필요)")) }
             return
         }
-        _state.update { it.copy(sheetState = SheetState.Loading("정밀 분석 중…")) }
-        val keywords = gemini.classifyTrashKeywords(jpegBytes)
-        if (keywords.isEmpty()) {
-            // Gemini didn't help — kick off the conversational fallback instead
-            // of just showing Empty.
-            startAskUser(reason = "사진으로도 식별이 어렵네요.")
-            return
+        _state.update {
+            it.copy(
+                sheetState = SheetState.Loading("AI가 분석 중… (이미지 ${jpegBytes.size / 1024}KB)"),
+                lastCapturedJpeg = jpegBytes,
+            )
         }
-        groundAndPresent(keywords, sourceLabel = "Gemini")
+        when (val r = gemini.classifyTrashKeywords(jpegBytes)) {
+            is GeminiResult.Ok -> {
+                if (r.value.isEmpty()) startAskUser(reason = "AI가 빈 응답을 반환했어요.")
+                else groundAndPresent(r.value, sourceLabel = "Gemini")
+            }
+            is GeminiResult.HttpError -> _state.update {
+                it.copy(sheetState = SheetState.Error("Gemini HTTP ${r.code}\n${r.body}"))
+            }
+            is GeminiResult.ParseError -> _state.update {
+                it.copy(sheetState = SheetState.Error("Gemini 응답 파싱 실패:\n${r.rawSnippet}"))
+            }
+            is GeminiResult.NetworkError -> _state.update {
+                it.copy(sheetState = SheetState.Error("네트워크 오류: ${r.detail}"))
+            }
+            is GeminiResult.InvalidInput -> _state.update {
+                it.copy(sheetState = SheetState.Error("입력 오류: ${r.detail}"))
+            }
+            GeminiResult.NotConfigured -> _state.update {
+                it.copy(sheetState = SheetState.Error("API 키가 설정되지 않았습니다."))
+            }
+        }
     }
 
     fun pickItem(itemId: String) {
@@ -127,14 +128,56 @@ class AppState(private val appContext: Context) {
         }
     }
 
-    /** Dismiss whatever's on the sheet and resume live detection. */
     fun dismissSheet() {
-        _state.update { it.copy(sheetState = SheetState.Idle) }
+        _state.update { it.copy(sheetState = SheetState.Idle, lastCapturedJpeg = null) }
+    }
+
+    /** Tap location pill → fetch GPS + reverse-geocode, update header label. */
+    fun fetchRegionFromGps() {
+        scope.launch {
+            _state.update { it.copy(regionLoading = true) }
+            val r = LocationHelper.fetchCurrentRegion(appContext)
+            _state.update { s ->
+                when (r) {
+                    is LocationHelper.Result.Ok -> s.copy(regionLabel = r.display, regionLoading = false)
+                    LocationHelper.Result.PermissionDenied -> s.copy(
+                        regionLoading = false,
+                        sheetState = SheetState.Error("위치 권한이 거부되었습니다. 설정에서 허용해주세요."),
+                    )
+                    LocationHelper.Result.NoLocation -> s.copy(
+                        regionLoading = false,
+                        sheetState = SheetState.Error("현재 위치를 가져오지 못했습니다. GPS가 켜져 있는지 확인하세요."),
+                    )
+                    is LocationHelper.Result.Error -> s.copy(
+                        regionLoading = false,
+                        sheetState = SheetState.Error("위치 오류: ${r.message}"),
+                    )
+                }
+            }
+        }
+    }
+
+    /** Tap "API 테스트" — sends a tiny request to verify the key & model are reachable. */
+    fun testApiKey() {
+        scope.launch {
+            _state.update { it.copy(sheetState = SheetState.Loading("API 키 테스트 중…")) }
+            val r = gemini.ping()
+            _state.update {
+                it.copy(
+                    sheetState = when (r) {
+                        is GeminiResult.Ok -> SheetState.Error("✅ 연결 OK\n${r.value}")
+                        is GeminiResult.HttpError -> SheetState.Error("❌ HTTP ${r.code}\n${r.body}")
+                        is GeminiResult.NetworkError -> SheetState.Error("❌ 네트워크: ${r.detail}")
+                        GeminiResult.NotConfigured -> SheetState.Error("❌ API 키 미설정")
+                        else -> SheetState.Error("❌ ${r::class.java.simpleName}")
+                    }
+                )
+            }
+        }
     }
 
     // ---- Conversational flow --------------------------------------------------
 
-    /** Open the AI conversation panel from any state. */
     fun startAskUser(reason: String? = null) {
         val prompt = reason?.let { "$it\n무엇인지 알려주실래요? (예: '뚜껑 달린 화장품 통', '깨진 거울')" }
             ?: "이 물건이 무엇인가요? 재질이나 용도를 알려주세요."
@@ -143,13 +186,6 @@ class AppState(private val appContext: Context) {
         }
     }
 
-    /**
-     * User typed a free-form Korean description. We:
-     *   1. Search DB by raw text (cheap, often enough)
-     *   2. If nothing or very weak, ask Gemini to extract keywords and re-search
-     *   3. If still nothing → keep the conversation going
-     *   4. Otherwise → Confirming(top match)
-     */
     fun submitUserText(rawText: String) {
         val text = rawText.trim()
         if (text.isEmpty()) return
@@ -160,16 +196,18 @@ class AppState(private val appContext: Context) {
             _state.update { it.copy(sheetState = SheetState.Loading("DB에서 찾는 중…")) }
             val db = withContext(Dispatchers.IO) { WasteGuideDb.open(appContext) }
 
-            // Pass 1: split user text into rough tokens and search.
             val initialNeedles = (listOf(text) + text.split(" ", "/", ",", " ").filter { it.length >= 2 })
                 .distinct()
             var hits = withContext(Dispatchers.IO) { db.searchByKeywords(initialNeedles, limit = 6) }
 
-            // Pass 2: ask Gemini to reword if we got no/weak hits.
             if (hits.isEmpty() && gemini.isConfigured) {
-                val keywords = gemini.extractKeywordsFromText(text)
-                if (keywords.isNotEmpty()) {
-                    hits = withContext(Dispatchers.IO) { db.searchByKeywords(keywords, limit = 6) }
+                when (val r = gemini.extractKeywordsFromText(text)) {
+                    is GeminiResult.Ok -> {
+                        if (r.value.isNotEmpty()) {
+                            hits = withContext(Dispatchers.IO) { db.searchByKeywords(r.value, limit = 6) }
+                        }
+                    }
+                    else -> { /* fall through to no-hits handling below */ }
                 }
             }
 
@@ -213,8 +251,6 @@ class AppState(private val appContext: Context) {
 
     fun confirmNo() {
         val s = _state.value.sheetState as? SheetState.Confirming ?: return
-        // Show the alternates as a clarify list so the user can pick one
-        // OR fall back to AskUser if there are no alternates.
         if (s.alternates.isNotEmpty()) {
             _state.update { it.copy(sheetState = SheetState.Clarify(s.alternates)) }
         } else {
@@ -224,31 +260,10 @@ class AppState(private val appContext: Context) {
 
     // ---- internals -----------------------------------------------------------
 
-    private suspend fun groundFromDetection(
-        detection: Detection,
-        sourceLabel: String,
-        forced: Boolean = false,
-    ) {
-        if (!analysisLock.tryLock()) return
-        try {
-            if (!forced && _state.value.sheetState !is SheetState.Idle) return
-            val englishLabels = detection.labels.map { it.label }
-            val keywords = englishLabels.flatMap { LabelBridge.toKoreanKeywords(it) }
-            if (keywords.isEmpty()) {
-                presentGenericClarify()
-                return
-            }
-            groundAndPresent(keywords, sourceLabel = sourceLabel)
-        } finally {
-            analysisLock.unlock()
-        }
-    }
-
     private suspend fun groundAndPresent(keywords: List<String>, sourceLabel: String) {
         val db = withContext(Dispatchers.IO) { WasteGuideDb.open(appContext) }
         val hits = withContext(Dispatchers.IO) { db.searchByKeywords(keywords, limit = 6) }
         if (hits.isEmpty()) {
-            // No match at all — hand off to conversational AI fallback
             startAskUser(reason = "DB에 정확히 일치하는 항목이 없어요.")
             return
         }
@@ -260,7 +275,6 @@ class AppState(private val appContext: Context) {
             if (rule == null) {
                 _state.update { it.copy(sheetState = SheetState.Empty("DB에서 ${top.itemName}을 찾지 못했습니다.")) }
             } else {
-                // Auto-presented by camera — use Confirming so user can reject easily
                 _state.update {
                     it.copy(
                         sheetState = SheetState.Confirming(
@@ -271,21 +285,6 @@ class AppState(private val appContext: Context) {
                     )
                 }
             }
-        } else {
-            _state.update { it.copy(sheetState = SheetState.Clarify(hits)) }
-        }
-    }
-
-    private suspend fun presentGenericClarify() {
-        val db = withContext(Dispatchers.IO) { WasteGuideDb.open(appContext) }
-        val hits = withContext(Dispatchers.IO) {
-            db.searchByKeywords(
-                listOf("플라스틱", "종이", "유리", "캔", "비닐", "음식물"),
-                limit = 6,
-            )
-        }
-        if (hits.isEmpty()) {
-            startAskUser(reason = "카테고리도 못 찾았어요.")
         } else {
             _state.update { it.copy(sheetState = SheetState.Clarify(hits)) }
         }
