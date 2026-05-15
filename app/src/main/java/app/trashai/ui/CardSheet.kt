@@ -171,6 +171,11 @@ fun ItemRuleBody(rule: ItemRule, regionLabel: String? = null) {
 
     Spacer(Modifier.height(Tokens.Sp12))
     Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            "출처 : ",
+            fontSize = Tokens.TagSize,
+            color = Tokens.TextSecondary,
+        )
         androidx.compose.foundation.Image(
             painter = androidx.compose.ui.res.painterResource(id = app.trashai.R.drawable.flogo),
             contentDescription = "출처 로고",
@@ -178,7 +183,7 @@ fun ItemRuleBody(rule: ItemRule, regionLabel: String? = null) {
         )
         Spacer(Modifier.width(Tokens.Sp4))
         Text(
-            "출처 · ${rule.sourceName}",
+            rule.sourceName,
             fontSize = Tokens.TagSize,
             color = Tokens.TextSecondary,
         )
