@@ -1,0 +1,27 @@
+# Secrets / local config
+local.properties
+*.keystore
+*.jks
+
+# Android / Gradle
+.gradle/
+build/
+/app/build/
+captures/
+.cxx/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Python (data pipeline)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Crawl/build logs (kept locally for debugging)
+data/*.log
+data/*.txt

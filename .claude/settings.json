@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -sL -o /tmp/yolo11n_test.tflite \"https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.tflite\" -w \"HTTP %{http_code} size=%{size_download}\\\\n\")",
+      "Read(//tmp/**)",
+      "Bash(py -3.11 -m pip install ultralytics tensorflow onnx onnxslim onnxruntime onnx2tf sng4onnx)",
+      "Bash(py -3.11 -c \"from ultralytics import YOLO; YOLO\\('yolo11n.pt'\\).export\\(format='tflite', imgsz=640\\)\")"
+    ]
+  }
+}
