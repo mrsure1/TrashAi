@@ -25,7 +25,9 @@ class GeminiClient(
     private val model: String = "gemini-2.5-flash",
 ) {
     private val http = OkHttpClient.Builder()
-        .callTimeout(25, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
         .build()
     private val json = Json { ignoreUnknownKeys = true }
 

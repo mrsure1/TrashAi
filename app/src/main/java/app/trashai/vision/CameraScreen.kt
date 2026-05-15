@@ -281,9 +281,7 @@ private fun cropToJpeg(src: Bitmap, bbox: android.graphics.RectF): ByteArray? {
     val w = right - left; val h = bottom - top
     if (w < 16 || h < 16) return bitmapToJpeg(src)
     val cropped = Bitmap.createBitmap(src, left, top, w, h)
-    val out = ByteArrayOutputStream()
-    cropped.compress(Bitmap.CompressFormat.JPEG, 90, out)
-    return out.toByteArray()
+    return bitmapToJpeg(cropped)
 }
 
 private fun cropFromScreenRect(src: Bitmap, screenRect: Rect, canvasSize: IntSize): ByteArray? {
@@ -301,13 +299,15 @@ private fun cropFromScreenRect(src: Bitmap, screenRect: Rect, canvasSize: IntSiz
     val w = right - left; val h = bottom - top
     if (w < 16 || h < 16) return bitmapToJpeg(src)
     val cropped = Bitmap.createBitmap(src, left, top, w, h)
-    val out = ByteArrayOutputStream()
-    cropped.compress(Bitmap.CompressFormat.JPEG, 90, out)
-    return out.toByteArray()
+    return bitmapToJpeg(cropped)
 }
 
 private fun bitmapToJpeg(src: Bitmap): ByteArray {
     val out = ByteArrayOutputStream()
-    src.compress(Bitmap.CompressFormat.JPEG, 90, out)
+    val scaled = if (src.width > 800 || src.height > 800) {
+        val scale = 800f / maxOf(src.width, src.height)
+        Bitmap.createScaledBitmap(src, (src.width * scale).toInt(), (src.height * scale).toInt(), true)
+    } else src
+    scaled.compress(Bitmap.CompressFormat.JPEG, 80, out)
     return out.toByteArray()
 }
