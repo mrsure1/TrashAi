@@ -24,8 +24,11 @@ import kotlin.coroutines.resume
 object LocationHelper {
 
     sealed interface Result {
-        data class Ok(val sido: String, val sigungu: String) : Result {
-            val display: String get() = listOf(sido, sigungu).filter { it.isNotBlank() }.joinToString(" ")
+        data class Ok(val sido: String, val locality: String, val subLocality: String) : Result {
+            val display: String get() {
+                val parts = listOf(sido, locality, subLocality).filter { it.isNotBlank() }.distinct()
+                return parts.joinToString(" ")
+            }
         }
         data object PermissionDenied : Result
         data object NoLocation : Result
@@ -72,10 +75,11 @@ object LocationHelper {
                 geocoder.getFromLocation(location.latitude, location.longitude, 1)
             }
             val first = addresses?.firstOrNull() ?: return@withContext Result.Error("주소 변환 실패")
-            // Korean admin levels: adminArea = 시/도, subAdminArea or locality = 시/군/구
+            // Korean admin levels: adminArea = 시/도, locality/subAdminArea = 시/군, subLocality = 구/동
             val sido = first.adminArea ?: ""
-            val sigungu = first.subAdminArea ?: first.locality ?: ""
-            return@withContext Result.Ok(sido, sigungu)
+            val locality = first.locality ?: first.subAdminArea ?: ""
+            val subLocality = first.subLocality ?: ""
+            return@withContext Result.Ok(sido, locality, subLocality)
         } catch (t: Throwable) {
             Log.w("LocationHelper", "geocoder failed: ${t.message}")
             return@withContext Result.Error(t.message ?: t::class.java.simpleName)
