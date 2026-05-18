@@ -17,6 +17,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.*
@@ -45,7 +46,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -214,9 +218,28 @@ private fun TrashAiApp() {
             tonalElevation = 6.dp,
             shadowElevation = 8.dp,
         ) {
+            val configuration = LocalConfiguration.current
+            val density = LocalDensity.current
+            val screenWidthPx = remember(configuration, density) {
+                with(density) { configuration.screenWidthDp.dp.toPx() }
+            }
+
             var scale by remember { mutableFloatStateOf(1f) }
-            val transformState = rememberTransformableState { zoomChange, _, _ ->
-                scale = (scale * zoomChange).coerceIn(1f, 3f)
+            var offsetX by remember { mutableFloatStateOf(0f) }
+
+            LaunchedEffect(scale) {
+                if (scale <= 1f) {
+                    offsetX = 0f
+                }
+            }
+
+            val transformState = rememberTransformableState { zoomChange, panChange, _ ->
+                val newScale = (scale * zoomChange).coerceIn(1f, 3f)
+                scale = newScale
+                if (newScale > 1f) {
+                    val maxOffset = (screenWidthPx * (newScale - 1f)) / 2f
+                    offsetX = (offsetX + panChange.x).coerceIn(-maxOffset, maxOffset)
+                }
             }
             val scrollState = rememberScrollState()
 
@@ -224,6 +247,15 @@ private fun TrashAiApp() {
                 modifier = Modifier
                     .fillMaxSize()
                     .transformable(state = transformState)
+                    .pointerInput(scale, screenWidthPx) {
+                        if (scale > 1f) {
+                            detectHorizontalDragGestures { change, dragAmount ->
+                                change.consume()
+                                val maxOffset = (screenWidthPx * (scale - 1f)) / 2f
+                                offsetX = (offsetX + dragAmount).coerceIn(-maxOffset, maxOffset)
+                            }
+                        }
+                    }
             ) {
                 // 스크롤 영역 (확대/축소 및 실제 높이 반영)
                 Box(
@@ -245,6 +277,7 @@ private fun TrashAiApp() {
                             .graphicsLayer(
                                 scaleX = scale,
                                 scaleY = scale,
+                                translationX = offsetX,
                                 transformOrigin = TransformOrigin(0.5f, 0f)
                             )
                             .padding(Tokens.Sp24)
