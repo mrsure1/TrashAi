@@ -243,6 +243,10 @@ private fun TrashAiApp() {
             }
             val scrollState = rememberScrollState()
 
+            LaunchedEffect(state.sheetState) {
+                scrollState.scrollTo(0)
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -291,6 +295,7 @@ private fun TrashAiApp() {
                             onSubmitText = { viewModel.submitUserText(it) },
                             onDismiss = { viewModel.dismissSheet() },
                             onShowInfo = { viewModel.showInfo(it) },
+                            onTabChange = { scope.launch { scrollState.scrollTo(0) } },
                         )
                     }
                 }
@@ -419,6 +424,7 @@ private fun BottomCardContent(
     onSubmitText: (String) -> Unit,
     onDismiss: () -> Unit,
     onShowInfo: (String) -> Unit,
+    onTabChange: () -> Unit = {},
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         when (val s = state.sheetState) {
@@ -512,7 +518,7 @@ private fun BottomCardContent(
 
             is SheetState.AskUser -> AskUserContent(s, onSubmitText, onDismiss)
 
-            is SheetState.Info -> InfoSheetContent(s.initialTab, onDismiss)
+            is SheetState.Info -> InfoSheetContent(s.initialTab, onDismiss, onTabChange)
 
             is SheetState.Empty -> {
                 Row(verticalAlignment = Alignment.CenterVertically) {
