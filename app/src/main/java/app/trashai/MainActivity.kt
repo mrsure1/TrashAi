@@ -9,6 +9,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -95,9 +96,21 @@ private fun TrashAiApp() {
         )
     }
 
+    val isResultView = state.sheetState is SheetState.Item || state.sheetState is SheetState.Clarify || state.sheetState is SheetState.Confirming
+    val topWeight by animateFloatAsState(
+        targetValue = if (isResultView) 0.25f else 1.0f,
+        animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing),
+        label = "topWeight"
+    )
+    val bottomWeight by animateFloatAsState(
+        targetValue = if (isResultView) 0.75f else 1.0f,
+        animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing),
+        label = "bottomWeight"
+    )
+
     Column(Modifier.fillMaxSize().background(Color.Black)) {
         // ---- Top half: camera (or captured image when result is up) -------
-        Box(modifier = Modifier.weight(1.1f).fillMaxWidth()) {
+        Box(modifier = Modifier.weight(topWeight).fillMaxWidth()) {
             CameraScreen(
                 onCaptureBytes = { bytes -> scope.launch { viewModel.onCapture(bytes) } },
                 capturedJpeg = state.lastCapturedJpeg,
@@ -194,7 +207,7 @@ private fun TrashAiApp() {
         // ---- Bottom half: info card --------------------------------------
         Surface(
             modifier = Modifier
-                .weight(1f)
+                .weight(bottomWeight)
                 .fillMaxWidth(),
             color = Tokens.Surface.copy(alpha = 0.95f),
             shape = RoundedCornerShape(topStart = Tokens.Radius24, topEnd = Tokens.Radius24),
