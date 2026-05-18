@@ -92,12 +92,6 @@ fun GestureOverlay(
 
                         if (slop == null) {
                             // Tap. Hit-test detection boxes; smallest containing wins.
-                            // 드래그 영역 선택 메뉴("이 영역 분석", "취소")가 떠 있을 때 버튼을 탭한 경우,
-                            // 하단에 위치한 바운딩 박스가 잘못 선택되는 것을 방지하기 위해 탭 이벤트를 무시합니다.
-                            if (dragStart != null && dragEnd != null) {
-                                return@awaitEachGesture
-                            }
-
                             val canvasW = size.width.toFloat()
                             val canvasH = size.height.toFloat()
                             val mapped = mapAll(detsState.value, canvasW, canvasH)
@@ -108,6 +102,11 @@ fun GestureOverlay(
                                 // Clear any stale drag rect on a successful box tap
                                 dragStart = null; dragEnd = null
                                 onBoxTap(hit.src)
+                            } else {
+                                // 빈 배경을 탭한 경우, 기존에 드래그된 커스텀 영역이 있다면 취소(초기화)합니다.
+                                if (dragStart != null || dragEnd != null) {
+                                    dragStart = null; dragEnd = null
+                                }
                             }
                         } else {
                             // Drag. Track until release to draw a custom region.
@@ -118,6 +117,15 @@ fun GestureOverlay(
                                 change.consume()
                             }
                             // dragStart/dragEnd persist for confirm/cancel UI below
+                            // 드래그가 종료된 후, 생성된 박스의 크기가 너무 작으면(32px 이하) 오터치/실수로 간주하여 자동 취소합니다.
+                            val s = dragStart; val e = dragEnd
+                            if (s != null && e != null) {
+                                val w = kotlin.math.abs(e.x - s.x)
+                                val h = kotlin.math.abs(e.y - s.y)
+                                if (w <= 32f || h <= 32f) {
+                                    dragStart = null; dragEnd = null
+                                }
+                            }
                         }
                     }
                 }
