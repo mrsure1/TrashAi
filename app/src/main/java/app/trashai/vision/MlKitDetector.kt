@@ -27,9 +27,18 @@ class MlKitDetector : AutoCloseable {
         ObjectDetectorOptions.Builder()
             .setDetectorMode(ObjectDetectorOptions.STREAM_MODE)
             .enableMultipleObjects()
-            .enableObjectTracking()
             .build()
     )
+
+    private data class TrackedObject(
+        val id: Int,
+        var bbox: RectF,
+        var lastSeenMs: Long
+    )
+
+    private var nextVirtualId = 10000 // ML Kit 진짜 ID와 겹치지 않게 큰 값부터 시작
+    private val activeTracks = mutableListOf<TrackedObject>()
+    private val trackTimeoutMs = 1500L
 
     @SuppressLint("UnsafeOptInUsageError")
     suspend fun analyze(image: ImageProxy): DetectionResult? {
@@ -47,13 +56,60 @@ class MlKitDetector : AutoCloseable {
         val srcH = rotated.height
 
         val objects = detector.process(input).await()
+        val now = System.currentTimeMillis()
+
+        // 1. 오래된 가상 트랙 타임아웃 제거
+        activeTracks.removeAll { now - it.lastSeenMs > trackTimeoutMs }
+
         val boxes = objects.map { obj ->
             val r = obj.boundingBox
+            val bboxF = RectF(r.left.toFloat(), r.top.toFloat(), r.right.toFloat(), r.bottom.toFloat())
+            
+            // 2. ML Kit 트래킹 ID 획득 시도
+            var finalTid = obj.trackingId
+            
+            if (finalTid == null) {
+                // 3. 트래킹 ID 누락 시 로컬 중심점 기반 소프트 트래킹 적용
+                val matched = activeTracks.minByOrNull { track ->
+                    val dx = track.bbox.centerX() - bboxF.centerX()
+                    val dy = track.bbox.centerY() - bboxF.centerY()
+                    dx * dx + dy * dy
+                }
+                
+                if (matched != null) {
+                    val dx = matched.bbox.centerX() - bboxF.centerX()
+                    val dy = matched.bbox.centerY() - bboxF.centerY()
+                    val distSq = dx * dx + dy * dy
+                    
+                    // 프레임 간 150픽셀 이내 근접 시 동일 사물로 판정
+                    if (distSq < 150f * 150f) {
+                        matched.bbox = bboxF
+                        matched.lastSeenMs = now
+                        finalTid = matched.id
+                    }
+                }
+                
+                if (finalTid == null) {
+                    val newId = nextVirtualId++
+                    activeTracks.add(TrackedObject(newId, bboxF, now))
+                    finalTid = newId
+                }
+            } else {
+                // ML Kit ID가 넘어온 경우 동기화
+                val existing = activeTracks.find { it.id == finalTid }
+                if (existing != null) {
+                    existing.bbox = bboxF
+                    existing.lastSeenMs = now
+                } else {
+                    activeTracks.add(TrackedObject(finalTid, bboxF, now))
+                }
+            }
+
             Detection(
-                bbox = RectF(r.left.toFloat(), r.top.toFloat(), r.right.toFloat(), r.bottom.toFloat()),
+                bbox = bboxF,
                 srcWidth = srcW,
                 srcHeight = srcH,
-                trackingId = obj.trackingId,
+                trackingId = finalTid,
             )
         }
         return DetectionResult(boxes, rotated)
