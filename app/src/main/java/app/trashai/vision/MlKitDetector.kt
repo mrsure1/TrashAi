@@ -27,6 +27,7 @@ class MlKitDetector : AutoCloseable {
         ObjectDetectorOptions.Builder()
             .setDetectorMode(ObjectDetectorOptions.STREAM_MODE)
             .enableMultipleObjects()
+            .enableClassification() // 분류 기능 활성화
             .build()
     )
 
@@ -105,11 +106,13 @@ class MlKitDetector : AutoCloseable {
                 }
             }
 
+            val rawLabel = obj.labels.firstOrNull()?.text
             Detection(
                 bbox = bboxF,
                 srcWidth = srcW,
                 srcHeight = srcH,
                 trackingId = finalTid,
+                rawMlKitLabel = rawLabel,
             )
         }
         return DetectionResult(boxes, rotated)

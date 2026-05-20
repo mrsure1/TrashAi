@@ -95,7 +95,19 @@ class AppState(private val appContext: Context) {
      * they want it analyzed. We send the JPEG to Gemini, then ground the result
      * against the local DB.
      */
-    suspend fun onCapture(jpegBytes: ByteArray) {
+    suspend fun onCapture(jpegBytes: ByteArray, rawLabel: String? = null) {
+        // 이미 유효한 캐시 라벨이나 분류명이 전달된 경우, 즉시 로컬 DB 그라운딩을 수행하여 비용 및 대기 시간 단축
+        if (!rawLabel.isNullOrBlank() && rawLabel != "미확인" && rawLabel != "확인 불가" && rawLabel != "분석 중...") {
+            _state.update {
+                it.copy(
+                    sheetState = SheetState.Loading("로컬 DB 가이드 매칭 중…"),
+                    lastCapturedJpeg = jpegBytes,
+                )
+            }
+            groundAndPresent(listOf(rawLabel), sourceLabel = "Cached Match")
+            return
+        }
+
         if (!supabaseVector.isConfigured) {
             _state.update { it.copy(sheetState = SheetState.Error("local.properties의 SUPABASE_URL 및 SUPABASE_ANON_KEY를 입력해주세요. (Clean+Rebuild 필요)")) }
             return
@@ -109,7 +121,7 @@ class AppState(private val appContext: Context) {
         
         val sigunguCode = _state.value.regionOrdinance?.regionId ?: "1100000000"
         
-        when (val r = supabaseVector.searchTrashVector(jpegBytes, sigunguCode)) {
+        when (val r = supabaseVector.searchTrashVector(jpegBytes, sigunguCode, rawLabel)) {
             is SupabaseResult.Ok -> {
                 if (r.value.isEmpty()) {
                     startAskUser(reason = "벡터 검색 매칭 결과가 없습니다.")

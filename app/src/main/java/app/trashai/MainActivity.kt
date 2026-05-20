@@ -120,7 +120,7 @@ private fun TrashAiApp() {
         // ---- Top half: camera (or captured image when result is up) -------
         Box(modifier = Modifier.weight(topWeight).fillMaxWidth()) {
             CameraScreen(
-                onCaptureBytes = { bytes -> scope.launch { viewModel.onCapture(bytes) } },
+                onCaptureBytes = { bytes, label -> scope.launch { viewModel.onCapture(bytes, label) } },
                 capturedJpeg = state.lastCapturedJpeg,
                 sigunguCode = state.regionOrdinance?.regionId ?: "1100000000",
             )

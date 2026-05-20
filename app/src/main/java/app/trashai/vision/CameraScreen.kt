@@ -62,7 +62,7 @@ import java.util.concurrent.Executors
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun CameraScreen(
-    onCaptureBytes: (ByteArray) -> Unit,
+    onCaptureBytes: (ByteArray, String?) -> Unit,
     capturedJpeg: ByteArray? = null,
     sigunguCode: String = "1100000000",
 ) {
@@ -99,7 +99,7 @@ fun CameraScreen(
 @SuppressLint("MissingPermission")
 @Composable
 private fun CameraWithLens(
-    onCaptureBytes: (ByteArray) -> Unit,
+    onCaptureBytes: (ByteArray, String?) -> Unit,
     sigunguCode: String,
 ) {
     val context = LocalContext.current
@@ -130,7 +130,7 @@ private fun CameraWithLens(
                     }
                     if (bytes != null) {
                         Log.d("CameraWithLens", "TID $tid 분석 시작 - 이미지 크롭 크기: ${bytes.size} bytes. Supabase 요청 중...")
-                        when (val apiRes = supabase.searchTrashVector(bytes, sigunguCode)) {
+                        when (val apiRes = supabase.searchTrashVector(bytes, sigunguCode, det.rawMlKitLabel)) {
                             is app.trashai.supabase.SupabaseResult.Ok -> {
                                 val topMatch = apiRes.value.firstOrNull()
                                 Log.d("CameraWithLens", "TID $tid Supabase 응답 성공 - 최고 매칭: ${topMatch?.item_name} (유사도: ${topMatch?.similarity})")
@@ -211,7 +211,8 @@ private fun CameraWithLens(
                     val bytes = withContext(Dispatchers.Default) {
                         cropToJpeg(src, detection.bbox)
                     }
-                    if (bytes != null) onCaptureBytes(bytes)
+                    val cachedLabel = trackingLabels[detection.trackingId]
+                    if (bytes != null) onCaptureBytes(bytes, cachedLabel ?: detection.rawMlKitLabel)
                 }
             },
             onRegionConfirmed = { rect, canvasSize ->
@@ -220,7 +221,7 @@ private fun CameraWithLens(
                     val bytes = withContext(Dispatchers.Default) {
                         cropFromScreenRect(src, rect, canvasSize)
                     }
-                    if (bytes != null) onCaptureBytes(bytes)
+                    if (bytes != null) onCaptureBytes(bytes, null)
                 }
             },
             modifier = Modifier.fillMaxSize(),
@@ -254,7 +255,7 @@ private fun CameraWithLens(
                     val src = latestResult?.sourceBitmap ?: return@Button
                     scope.launch {
                         val bytes = withContext(Dispatchers.Default) { bitmapToJpeg(src) }
-                        if (bytes != null) onCaptureBytes(bytes)
+                        if (bytes != null) onCaptureBytes(bytes, null)
                     }
                 },
                 modifier = Modifier
