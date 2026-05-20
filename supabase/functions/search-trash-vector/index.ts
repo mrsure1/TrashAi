@@ -92,51 +92,18 @@ serve(async (req) => {
       });
     }
 
-    // 3. 획득한 품목명을 기반으로 Supabase DB 쿼리 진행
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    // 3. 더 이상 클라우드 DB를 조회하지 않고, Gemini가 검출한 품목 단어 자체를 바로 반환합니다.
+    // 모바일 앱은 이 item_name을 받아서 로컬 고정밀 SQLite DB에서 검색을 수행하게 됩니다.
+    const results = [{
+      id: 1,
+      item_name: detectedItem,
+      category: "재활용",
+      disposal_method: "",
+      disposal_time: "",
+      similarity: 1.0 // 0.35 필터 무조건 통과
+    }];
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    console.log(`[Info] DB에서 "${detectedItem}" 품목 정보 조회 중...`);
-
-    // 품목명을 포함하는 공식 조례 룰 DB 조회 (LIKE)
-    const { data: dbRules, error: dbError } = await supabase
-      .from("waste_disposal_rules")
-      .select("id, item_name, category, disposal_method, disposal_time")
-      .like("item_name", `%${detectedItem}%`)
-      .limit(5);
-
-    if (dbError) {
-      console.error("[Error] DB 조회 실패:", dbError);
-      return new Response(JSON.stringify({ error: dbError.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      });
-    }
-
-    let finalResults = dbRules || [];
-    if (finalResults.length === 0) {
-      // 차선책으로 category나 단어 매칭 시도
-      const { data: fallbackRules } = await supabase
-        .from("waste_disposal_rules")
-        .select("id, item_name, category, disposal_method, disposal_time")
-        .or(`item_name.ilike.%${detectedItem}%,category.ilike.%${detectedItem}%`)
-        .limit(5);
-      finalResults = fallbackRules || [];
-    }
-
-    // 모바일 클라이언트가 기대하는 VectorResult 구조(similarity 포함)로 포맷 매핑
-    const results = finalResults.map((r, idx) => ({
-      id: r.id,
-      item_name: r.item_name,
-      category: r.category,
-      disposal_method: r.disposal_method,
-      disposal_time: r.disposal_time,
-      similarity: 1.0 - (idx * 0.1) // similarity >= 0.35 필터 통과를 위해 스코어 모킹
-    }));
-
-    console.log(`[Success] 매칭 완료! 결과 개수: ${results.length}`);
+    console.log(`[Success] 사물 검출 성공: "${detectedItem}"`);
 
     return new Response(JSON.stringify({ results }), {
       status: 200,
