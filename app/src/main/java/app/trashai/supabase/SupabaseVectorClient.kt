@@ -112,6 +112,11 @@ class SupabaseVectorClient(
             labelLower.contains("appliance") -> "가전제품"
             labelLower.contains("clothing") || labelLower.contains("fashion") -> "의류"
             labelLower.contains("plastic") -> "플라스틱"
+            
+            // ML Kit 5대 카테고리 매핑
+            labelLower.contains("home goods") || labelLower.contains("home") -> "플라스틱"
+            labelLower.contains("plants") || labelLower.contains("plant") -> "나무"
+            
             else -> "일반쓰레기"
         }
 
@@ -125,7 +130,7 @@ class SupabaseVectorClient(
                 similarity = 1.0
             )
         )
-        Log.d(TAG, "USE_LOCAL_VECTOR_SEARCH - ML Kit 레이블: $rawLabel -> 매칭 키워드: $matchedKorean")
+        Log.d(TAG, "USE_LOCAL_VECTOR_SEARCH - ML Kit 레이블: '$rawLabel' -> 매칭 키워드: '$matchedKorean'")
         return SupabaseResult.Ok(results)
     }
 
