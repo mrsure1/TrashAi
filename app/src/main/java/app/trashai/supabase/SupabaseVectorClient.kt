@@ -24,6 +24,9 @@ object TrashAiConfig {
     const val USE_LOCAL_VECTOR_SEARCH = false
 }
 
+import app.trashai.gemini.GeminiClient
+import app.trashai.gemini.GeminiResult
+
 class SupabaseVectorClient(
     private val supabaseUrl: String = BuildConfig.SUPABASE_URL,
     private val anonKey: String = BuildConfig.SUPABASE_ANON_KEY
@@ -34,8 +37,9 @@ class SupabaseVectorClient(
         .build()
 
     private val json = Json { ignoreUnknownKeys = true }
+    private val gemini = GeminiClient()
 
-    val isConfigured: Boolean get() = supabaseUrl.isNotBlank() && anonKey.isNotBlank()
+    val isConfigured: Boolean get() = supabaseUrl.isNotBlank() && anonKey.isNotBlank() && gemini.isConfigured
 
     @Serializable
     data class VectorResult(
@@ -53,8 +57,8 @@ class SupabaseVectorClient(
     )
 
     /**
-     * 크롭된 이미지 바이트(JPEG)와 거주지 시군구 코드를 넘겨
-     * pgvector 기반 의미론적 코사인 유사도 검색 상위 결과를 획득합니다.
+     * 클라이언트 내부에서 직접 Gemini API를 호출하여 이미지 속 사물을 고정밀 판독하고
+     * 한글 단어 후보군을 그대로 반환합니다.
      */
     suspend fun searchTrashVector(
         jpegBytes: ByteArray,
@@ -68,44 +72,31 @@ class SupabaseVectorClient(
         if (!isConfigured) return@withContext SupabaseResult.NotConfigured
         if (jpegBytes.isEmpty()) return@withContext SupabaseResult.InvalidInput("이미지 데이터가 비어있습니다.")
 
-        val url = "$supabaseUrl/functions/v1/search-trash-vector"
-        val requestBody = jpegBytes.toRequestBody("application/octet-stream".toMediaType())
-
-        val request = Request.Builder()
-            .url(url)
-            .post(requestBody)
-            .addHeader("Authorization", "Bearer $anonKey")
-            .addHeader("sigungu-code", sigunguCode)
-            .build()
-
-        runCatching {
-            http.newCall(request).execute().use { resp ->
-                val bodyStr = resp.body?.string().orEmpty()
-                if (!resp.isSuccessful) {
-                    Log.w(TAG, "Supabase Vector API HTTP Error ${resp.code}: $bodyStr")
-                    return@use SupabaseResult.HttpError(resp.code, bodyStr.take(400))
-                }
-
-                val parsed = runCatching { json.decodeFromString<VectorResponse>(bodyStr) }.getOrNull()
-                if (parsed == null) {
-                    Log.w(TAG, "Parsing JSON failed. response=$bodyStr")
-                    SupabaseResult.ParseError(bodyStr.take(400))
+        when (val geminiRes = gemini.classifyTrashKeywords(jpegBytes)) {
+            is GeminiResult.Ok -> {
+                val keywords = geminiRes.value
+                if (keywords.isEmpty()) {
+                    SupabaseResult.Ok(emptyList())
                 } else {
-                    // 서버에서 반환하는 구버전 대분류 카테고리명을 정교한 사물명으로 클라이언트 단에서 보정
-                    val correctedResults = parsed.results.map { res ->
-                        val correctedName = when (res.item_name.trim().replace(" ", "")) {
-                            "음수대용종이컵", "음수대용종이컵류", "종이컵라면", "종이컵" -> "종이컵(카페 일회용컵)"
-                            "폐가전", "가전제품", "가전" -> "노트북"
-                            else -> res.item_name
-                        }
-                        res.copy(item_name = correctedName)
+                    // 가장 첫 번째 판독 단어가 실시간 화면의 바운딩 박스 라벨이 됩니다.
+                    val results = keywords.mapIndexed { idx, item ->
+                        VectorResult(
+                            id = idx.toLong() + 1,
+                            item_name = item,
+                            category = "재활용",
+                            disposal_method = "",
+                            disposal_time = "",
+                            similarity = if (idx == 0) 1.0 else 0.8
+                        )
                     }
-                    SupabaseResult.Ok(correctedResults)
+                    SupabaseResult.Ok(results)
                 }
             }
-        }.getOrElse {
-            Log.w(TAG, "Network exception: ${it.message}")
-            SupabaseResult.NetworkError(it.message ?: it::class.java.simpleName)
+            is GeminiResult.HttpError -> SupabaseResult.HttpError(geminiRes.code, geminiRes.body)
+            is GeminiResult.NetworkError -> SupabaseResult.NetworkError(geminiRes.detail)
+            is GeminiResult.ParseError -> SupabaseResult.ParseError(geminiRes.rawSnippet)
+            is GeminiResult.InvalidInput -> SupabaseResult.InvalidInput(geminiRes.detail)
+            is GeminiResult.NotConfigured -> SupabaseResult.NotConfigured
         }
     }
 
