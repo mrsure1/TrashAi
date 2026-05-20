@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 
@@ -83,8 +84,8 @@ fun GestureOverlay(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .onSizeChanged { canvasSize = it }
                 .pointerInput(Unit) {
-                    canvasSize = IntSize(size.width, size.height)
                     awaitEachGesture {
                         // 상위 레이어의 버튼이 터치 이벤트를 소비했으면 무시하도록 requireUnconsumed = true로 설정합니다.
                         val down = awaitFirstDown(requireUnconsumed = true)
