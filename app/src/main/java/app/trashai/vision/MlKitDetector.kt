@@ -27,6 +27,7 @@ class MlKitDetector : AutoCloseable {
         ObjectDetectorOptions.Builder()
             .setDetectorMode(ObjectDetectorOptions.STREAM_MODE)
             .enableMultipleObjects()
+            .enableObjectTracking()
             .build()
     )
 

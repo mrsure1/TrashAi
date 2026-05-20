@@ -129,9 +129,11 @@ private fun CameraWithLens(
                         cropToJpeg(src, det.bbox)
                     }
                     if (bytes != null) {
+                        Log.d("CameraWithLens", "TID $tid 분석 시작 - 이미지 크롭 크기: ${bytes.size} bytes. Supabase 요청 중...")
                         when (val apiRes = supabase.searchTrashVector(bytes, sigunguCode)) {
                             is app.trashai.supabase.SupabaseResult.Ok -> {
                                 val topMatch = apiRes.value.firstOrNull()
+                                Log.d("CameraWithLens", "TID $tid Supabase 응답 성공 - 최고 매칭: ${topMatch?.item_name} (유사도: ${topMatch?.similarity})")
                                 if (topMatch != null && topMatch.similarity >= 0.35) {
                                     trackingLabels[tid] = topMatch.item_name
                                 } else {
@@ -139,12 +141,13 @@ private fun CameraWithLens(
                                 }
                             }
                             else -> {
+                                Log.w("CameraWithLens", "TID $tid Supabase API 실패: $apiRes")
                                 trackingLabels[tid] = "확인 불가"
                             }
                         }
                     }
                 } catch (e: Exception) {
-                    Log.w("CameraWithLens", "TID $tid 분석 실패", e)
+                    Log.w("CameraWithLens", "TID $tid 분석 중 에러 발생", e)
                 } finally {
                     pendingTrackings.remove(tid)
                 }
