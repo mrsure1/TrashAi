@@ -60,6 +60,10 @@ import app.trashai.ui.InfoSheetContent
 import app.trashai.ui.ItemRuleBody
 import app.trashai.ui.Tokens
 import app.trashai.vision.CameraScreen
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.AnnotatedString
 import kotlinx.coroutines.launch
 import kotlin.math.cos
 import kotlin.math.sin
@@ -856,7 +860,28 @@ private fun IdleCardContent(onShowInfo: (String) -> Unit) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Tokens.TextPrimary)
                         Spacer(Modifier.height(2.dp))
-                        Text(desc, fontSize = 13.sp, color = Tokens.TextSecondary, lineHeight = 18.sp)
+                        Text(
+                            text = if (title.startsWith("2단계")) {
+                                buildAnnotatedString {
+                                    val target = "주황색"
+                                    val startIndex = desc.indexOf(target)
+                                    if (startIndex >= 0) {
+                                        append(desc.substring(0, startIndex))
+                                        withStyle(style = SpanStyle(color = Color(0xFFFF8C00), fontWeight = FontWeight.Bold)) {
+                                            append(target)
+                                        }
+                                        append(desc.substring(startIndex + target.length))
+                                    } else {
+                                        append(desc)
+                                    }
+                                }
+                            } else {
+                                AnnotatedString(desc)
+                            },
+                            fontSize = 13.sp,
+                            color = Tokens.TextSecondary,
+                            lineHeight = 18.sp
+                        )
                     }
                 }
                 if (index < steps.size - 1) {
