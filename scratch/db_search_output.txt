@@ -1,0 +1,41 @@
+--- app_item_rule 검색 ---
+ID: 564 | Name: 꼬깔형 생수컵
+ID: 563 | Name: 위생 봉투컵
+ID: 561 | Name: 종이가방
+ID: 529 | Name: 종이팩
+ID: 528 | Name: 종이
+ID: 503 | Name: 유리컵
+ID: 502 | Name: 머그컵
+ID: 497 | Name: 계량컵
+ID: 464 | Name: 껌종이
+ID: 410 | Name: 종이호일
+ID: 406 | Name: 종이 컵라면
+ID: 350 | Name: 기름종이
+ID: 308 | Name: 종이테이프
+ID: 263 | Name: 커피메이커
+ID: 118 | Name: 커피생두봉투
+ID: 117 | Name: 삼각커피우유
+ID: 111 | Name: 카페 일회용컵
+ID: 103 | Name: 커피봉지
+ID: 86 | Name: 캔커피
+ID: 44 | Name: 종이 퍼즐
+ID: 42 | Name: 종이 완충재
+ID: 41 | Name: 음수대용 종이컵
+ID: 40 | Name: 종이 보냉박스
+ID: 36 | Name: 종이 쇼핑백
+ID: 23 | Name: 색종이
+
+--- app_search_keyword 검색 ---
+ID: 564 | Item: 꼬깔형 생수컵 | Keyword: 꼬깔형생수컵 | Weight: 100
+ID: 563 | Item: 위생 봉투컵 | Keyword: 위생봉투컵 | Weight: 100
+ID: 503 | Item: 유리컵 | Keyword: 유리컵 | Weight: 100
+ID: 502 | Item: 머그컵 | Keyword: 머그컵 | Weight: 100
+ID: 497 | Item: 계량컵 | Keyword: 계량컵 | Weight: 100
+ID: 406 | Item: 종이 컵라면 | Keyword: 종이컵라면 | Weight: 100
+ID: 263 | Item: 커피메이커 | Keyword: 커피메이커 | Weight: 100
+ID: 118 | Item: 커피생두봉투 | Keyword: 커피생두봉투 | Weight: 100
+ID: 117 | Item: 삼각커피우유 | Keyword: 삼각커피우유 | Weight: 100
+ID: 111 | Item: 카페 일회용컵 | Keyword: 카페일회용컵 | Weight: 100
+ID: 103 | Item: 커피봉지 | Keyword: 커피봉지 | Weight: 100
+ID: 86 | Item: 캔커피 | Keyword: 캔커피 | Weight: 100
+ID: 41 | Item: 음수대용 종이컵 | Keyword: 음수대용종이컵 | Weight: 100

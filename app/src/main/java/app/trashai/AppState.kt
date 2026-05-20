@@ -242,13 +242,13 @@ class AppState(private val appContext: Context) {
 
             val initialNeedles = (listOf(text) + text.split(" ", "/", ",", " ").filter { it.length >= 2 })
                 .distinct()
-            var hits = withContext(Dispatchers.IO) { db.searchByKeywords(initialNeedles, limit = 6) }
+            var hits = withContext(Dispatchers.IO) { db.searchByKeywords(expandKeywords(initialNeedles), limit = 6) }
 
             if (hits.isEmpty() && gemini.isConfigured) {
                 when (val r = gemini.extractKeywordsFromText(text)) {
                     is GeminiResult.Ok -> {
                         if (r.value.isNotEmpty()) {
-                            hits = withContext(Dispatchers.IO) { db.searchByKeywords(r.value, limit = 6) }
+                            hits = withContext(Dispatchers.IO) { db.searchByKeywords(expandKeywords(r.value), limit = 6) }
                         }
                     }
                     else -> { /* fall through to no-hits handling below */ }
@@ -308,7 +308,7 @@ class AppState(private val appContext: Context) {
 
     private suspend fun groundAndPresent(keywords: List<String>, sourceLabel: String) {
         val db = withContext(Dispatchers.IO) { WasteGuideDb.open(appContext) }
-        val hits = withContext(Dispatchers.IO) { db.searchByKeywords(keywords, limit = 6) }
+        val hits = withContext(Dispatchers.IO) { db.searchByKeywords(expandKeywords(keywords), limit = 6) }
         if (hits.isEmpty()) {
             startAskUser(reason = "DB에 정확히 일치하는 항목이 없어요.")
             return
@@ -346,5 +346,20 @@ class AppState(private val appContext: Context) {
                name.contains("청소기") || name.contains("컴퓨터") || name.contains("모니터") || 
                name.contains("노트북") || name.contains("선풍기") || name.contains("가습기") || 
                name.contains("헤어드라이어") || name.contains("러닝머신")
+    }
+
+    private fun expandKeywords(keywords: List<String>): List<String> {
+        val expanded = keywords.toMutableList()
+        for (kw in keywords) {
+            val trimmed = kw.trim()
+            if (trimmed == "종이컵") {
+                expanded.add("카페 일회용컵")
+            } else if (trimmed == "커피컵" || trimmed == "테이크아웃컵" || trimmed == "일회용컵") {
+                expanded.add("카페 일회용컵")
+            } else if (trimmed == "커피종이컵" || trimmed == "종이커피컵") {
+                expanded.add("카페 일회용컵")
+            }
+        }
+        return expanded.distinct()
     }
 }
