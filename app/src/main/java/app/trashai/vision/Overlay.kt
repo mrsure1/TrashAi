@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.absoluteOffset
+import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -161,7 +163,7 @@ fun GestureOverlay(
                             )
                             .clip(RoundedCornerShape(8.dp))
                             .background(Color(0xE6000000))
-                            .androidx.compose.foundation.border(
+                            .border(
                                 width = 1.dp,
                                 color = NeonGreen,
                                 shape = RoundedCornerShape(8.dp)
@@ -191,7 +193,7 @@ fun GestureOverlay(
                         )
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color(0xE6000000))
-                        .androidx.compose.foundation.border(
+                        .border(
                             width = 1.dp,
                             color = NeonOrange,
                             shape = RoundedCornerShape(8.dp)
