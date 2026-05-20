@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.absoluteOffset
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -157,7 +157,7 @@ fun GestureOverlay(
                 if (!m.src.label.isNullOrEmpty()) {
                     Box(
                         modifier = Modifier
-                            .absoluteOffset(
+                            .offset(
                                 x = (m.left / density).dp,
                                 y = ((m.top - 32f).coerceAtLeast(0f) / density).dp
                             )
@@ -187,7 +187,7 @@ fun GestureOverlay(
                 val top = minOf(s.y, e.y)
                 Box(
                     modifier = Modifier
-                        .absoluteOffset(
+                        .offset(
                             x = (left / density).dp,
                             y = ((top - 32f).coerceAtLeast(0f) / density).dp
                         )
