@@ -379,12 +379,15 @@ class AppState(private val appContext: Context) {
         val expanded = keywords.toMutableList()
         for (kw in keywords) {
             val trimmed = kw.trim()
-            if (trimmed == "종이컵") {
+            if (trimmed == "종이컵" || trimmed == "음수대용 종이컵" || trimmed == "음수대용종이컵" || trimmed == "종이 컵라면") {
                 expanded.add("카페 일회용컵")
             } else if (trimmed == "커피컵" || trimmed == "테이크아웃컵" || trimmed == "일회용컵") {
                 expanded.add("카페 일회용컵")
             } else if (trimmed == "커피종이컵" || trimmed == "종이커피컵") {
                 expanded.add("카페 일회용컵")
+            } else if (trimmed == "폐가전" || trimmed == "가전제품" || trimmed == "가전") {
+                expanded.add("노트북")
+                expanded.add("컴퓨터")
             }
         }
         return expanded.distinct()
